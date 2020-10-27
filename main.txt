@@ -1,0 +1,226 @@
+/////////////////////////////////ÀÕ¼ö´ç temp = 11 ÃÑ 253(23ÀÕ¼ö)
+/////////////////////////////////
+#include <stm32f10x_rcc.h>
+#include <misc.h>
+#include <stm32f10x_exti.h>
+#include <stm32f10x_gpio.h>
+
+int count = 0;
+int clbit = 0;
+
+
+
+void EXTI0_IRQHandler(void)
+{
+   if(EXTI_GetITStatus(EXTI_Line0) != RESET) {
+        EXTI_ClearITPendingBit(EXTI_Line0);
+        if(clbit != 0)
+        {
+          count++;
+          clbit = 0;
+        }
+    }
+ 
+}
+void EXTI1_IRQHandler(void)
+{
+  if(EXTI_GetITStatus(EXTI_Line1) != RESET) {
+   clbit++;
+   EXTI_ClearITPendingBit(EXTI_Line1);
+  }
+}
+
+
+void RCC_Configuration(void)
+{ 
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_AFIO, ENABLE);
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOA, ENABLE);
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_USART1, ENABLE);
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOB, ENABLE);
+  RCC_APB2PeriphClockCmd(RCC_APB2Periph_GPIOE, ENABLE);
+}
+
+void NVIC_Configuration()
+{
+  NVIC_InitTypeDef NVIC_InitStructure;
+  NVIC_InitStructure.NVIC_IRQChannel = EXTI0_IRQn;
+  NVIC_InitStructure.NVIC_IRQChannelCmd = ENABLE;
+  NVIC_InitStructure.NVIC_IRQChannelPreemptionPriority = 16;
+  NVIC_InitStructure.NVIC_IRQChannelSubPriority = 16;
+  NVIC_Init(&NVIC_InitStructure);
+  
+  NVIC_InitStructure.NVIC_IRQChannel = EXTI1_IRQn;
+  NVIC_InitStructure.NVIC_IRQChannelSubPriority = 15;
+  NVIC_Init(&NVIC_InitStructure);
+}
+
+void USART_Configuration()
+{
+  USART_InitTypeDef USART_InitStructure;
+  USART_InitStructure.USART_BaudRate = 115200;
+  USART_InitStructure.USART_WordLength = USART_WordLength_8b;
+  USART_InitStructure.USART_StopBits = USART_StopBits_1;
+  USART_InitStructure.USART_Parity = USART_Parity_No;
+  USART_InitStructure.USART_HardwareFlowControl = USART_HardwareFlowControl_None;
+  USART_InitStructure.USART_Mode = USART_Mode_Rx | USART_Mode_Tx;
+  USART_Init(USART1, &USART_InitStructure);
+  USART_Cmd(USART1, ENABLE);
+}
+
+void EXTI_Configuration()
+{
+  EXTI_InitTypeDef EXTI_InitStructure;
+  EXTI_InitStructure.EXTI_Line = EXTI_Line0;
+  EXTI_InitStructure.EXTI_Mode = EXTI_Mode_Interrupt;
+  EXTI_InitStructure.EXTI_Trigger = EXTI_Trigger_Falling;  
+  EXTI_InitStructure.EXTI_LineCmd = ENABLE;
+  EXTI_Init(&EXTI_InitStructure);
+  GPIO_EXTILineConfig(GPIO_PortSourceGPIOE, GPIO_PinSource0);
+  
+  EXTI_InitStructure.EXTI_Line = EXTI_Line1;
+  EXTI_Init(&EXTI_InitStructure);
+  GPIO_EXTILineConfig(GPIO_PortSourceGPIOE, GPIO_PinSource1);
+
+}
+
+void GPIO_Configuration()
+{
+  GPIO_InitTypeDef GPIO_InitStructure;
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_0 | GPIO_Pin_1;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IPU;
+  GPIO_Init(GPIOE, &GPIO_InitStructure);
+  
+ 
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_5 | GPIO_Pin_6 | GPIO_Pin_7;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_Out_PP;
+  GPIO_Init(GPIOB, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_9;
+  GPIO_InitStructure.GPIO_Speed = GPIO_Speed_50MHz;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_AF_PP;
+  GPIO_Init(GPIOA, &GPIO_InitStructure);
+  
+  GPIO_InitStructure.GPIO_Pin = GPIO_Pin_10;
+  GPIO_InitStructure.GPIO_Mode = GPIO_Mode_IN_FLOATING;
+  GPIO_Init(GPIOA, &GPIO_InitStructure);
+  
+}
+
+void SerialPutChar(uint8_t c)
+{
+  while(USART_GetFlagStatus(USART1, USART_FLAG_TXE) == RESET);
+  USART_SendData(USART1, c);
+}
+void Serial_PutString(uint8_t *s)
+{
+  while(*s != '\0')
+  {
+    SerialPutChar(*s);
+    s++;
+  }
+}
+
+void main(void) 
+{
+  int i = 7;
+  unsigned short temp2, temp3;
+  long temp;
+  RCC_Configuration();
+  USART_Configuration();
+  NVIC_Configuration();
+  GPIO_Configuration();
+  EXTI_Configuration();
+  EXTI_GenerateSWInterrupt(EXTI_Line0);
+  EXTI_GenerateSWInterrupt(EXTI_Line1);
+  
+ while(1)
+ {
+   temp = 0;
+   temp2 = 0;
+   temp3 = 0;
+   GPIO_ResetBits(GPIOB, GPIO_Pin_5);
+   GPIO_ResetBits(GPIOB, GPIO_Pin_6);
+   GPIO_ResetBits(GPIOB, GPIO_Pin_7);
+    while(USART_GetFlagStatus(USART1, USART_FLAG_RXNE) != SET);
+    if(USART_ReceiveData(USART1) == 'b')
+    {
+      USART_ClearITPendingBit(USART1, USART_ReceiveData(USART1));
+      i = 0;
+      
+    }
+    else if(USART_ReceiveData(USART1) == 'a')
+    {
+      USART_ClearITPendingBit(USART1, USART_ReceiveData(USART1));
+      i = 1;
+    }
+    
+      Serial_PutString("\nvolume??");
+      while(USART_GetFlagStatus(USART1, USART_FLAG_RXNE) != SET);
+      temp2 = (int)USART_ReceiveData(USART1) - 48;
+      USART_ClearITPendingBit(USART1, USART_ReceiveData(USART1));
+      SerialPutChar((char)temp2);
+      
+      if(temp2 == 1)
+      {
+        Serial_PutString("\nnumber of ten??");
+        while(USART_GetFlagStatus(USART1, USART_FLAG_RXNE) != SET);
+        temp2 = USART_ReceiveData(USART1) - 48;
+        USART_ClearITPendingBit(USART1, USART_ReceiveData(USART1));
+         SerialPutChar((char)temp2);
+      }
+      else if(temp2 == 2)
+      {
+        Serial_PutString("\nnumber of hundred??");
+        while(USART_GetFlagStatus(USART1, USART_FLAG_RXNE) != SET);
+        temp3 = USART_ReceiveData(USART1) - 48;
+        USART_ClearITPendingBit(USART1, USART_ReceiveData(USART1));
+        SerialPutChar((char)temp3);
+        Serial_PutString("\nnumber of ten??");
+        while(USART_GetFlagStatus(USART1, USART_FLAG_RXNE) != SET);
+        temp2 = USART_ReceiveData(USART1) - 48;
+        USART_ClearITPendingBit(USART1, USART_ReceiveData(USART1));
+         SerialPutChar((char)temp2);
+      }
+      Serial_PutString("\n\rNUM??");
+      while(USART_GetFlagStatus(USART1, USART_FLAG_RXNE) != SET);
+      temp = (100*temp3) + (10*temp2) + (USART_ReceiveData(USART1) - 48);
+       SerialPutChar((char)USART_ReceiveData(USART1));
+      USART_ClearITPendingBit(USART1, USART_ReceiveData(USART1));
+      Serial_PutString("\n\rGot it!");
+      
+     
+      SerialPutChar((char)temp);
+      
+  while(1)
+  {
+    if(i == 0)                  //Á¤È¸Àü
+    {
+      while(count <= temp)
+      {
+          GPIO_ResetBits(GPIOB, GPIO_Pin_5);
+          GPIO_SetBits(GPIOB, GPIO_Pin_6);
+          GPIO_SetBits(GPIOB, GPIO_Pin_7);
+      }
+      count = 0;
+      break;
+    }
+    else if(i == 1)             //¿ªÈ¸Àü
+    {
+      while(count <= temp)
+      {
+          GPIO_ResetBits(GPIOB, GPIO_Pin_6);
+          GPIO_SetBits(GPIOB, GPIO_Pin_5);
+          GPIO_SetBits(GPIOB, GPIO_Pin_7);
+      }
+      count = 0;
+      break;
+    }
+    else
+    {
+      break;
+    }
+  }
+}
+}
+
